@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NutriSage — Daily Diet & Habit Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], display: ['Plus Jakarta Sans', 'sans-serif'] },
+                    colors: {
+                        sage: { 50: '#f4f7f4', 100: '#e3ebe4', 200: '#c7d8c9', 300: '#9fbc9f', 400: '#749b76', 500: '#537e56', 600: '#3f6342', 700: '#335036', 800: '#2a402d', 900: '#233526' },
+                        cream: '#fafaf7',
+                        terracotta: { 50: '#fdf6f3', 100: '#fae8e0', 500: '#d97757', 600: '#c25e3e' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #f4f7f4; color: #1f2937; -webkit-tap-highlight-color: transparent; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f1; border-radius: 999px; }
+        ::-webkit-scrollbar-thumb { background: #c7d8c9; border-radius: 999px; }
+        .card-shadow { box-shadow: 0 4px 20px -2px rgba(51, 80, 54, 0.06), 0 1px 3px -1px rgba(51, 80, 54, 0.04); }
+    </style>
+</head>
+<body class="min-h-screen pb-16 selection:bg-sage-200 selection:text-sage-900">
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-xs w-full pointer-events-none"></div>
+
+    <!-- Modal Reset -->
+    <div id="reset-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-gray-900/40 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-sage-100">
+            <div class="w-12 h-12 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center mb-4">
+                <i class="ph ph-warning-circle text-2xl"></i>
+            </div>
+            <h3 class="font-display text-lg font-bold text-gray-900 mb-1">Reset Data Hari Ini?</h3>
+            <p class="text-sm text-gray-500 mb-6 leading-relaxed">
+                Semua catatan makanan, olahraga, timbangan, dan checklist pantangan tanggal <span id="modal-date-label" class="font-semibold text-gray-700"></span> akan dihapus.
+            </p>
+            <div class="flex gap-3">
+                <button onclick="toggleModal('reset-modal', false)" class="flex-1 py-2.5 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-sm">Batal</button>
+                <button onclick="confirmResetDay()" class="flex-1 py-2.5 px-4 rounded-xl bg-red-500 hover:bg-red-600 text-white font-medium text-sm shadow-sm">Ya, Reset</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Target Harian -->
+    <div id="target-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-gray-900/40 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-sage-100">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="font-display text-lg font-bold text-gray-900">Atur Target Harian</h3>
+                <button onclick="toggleModal('target-modal', false)" class="p-1.5 rounded-xl text-gray-400 hover:bg-gray-100"><i class="ph ph-x text-lg"></i></button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">Batas Kalori Masuk (kkal)</label>
+                    <input type="number" id="input-target-in" min="500" max="10000" step="50" class="w-full px-4 py-2.5 rounded-xl border border-sage-200 focus:outline-none focus:ring-2 focus:ring-sage-500 text-sm font-medium" placeholder="1600">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">Target Kalori Keluar (kkal)</label>
+                    <input type="number" id="input-target-out" min="0" max="5000" step="25" class="w-full px-4 py-2.5 rounded-xl border border-sage-200 focus:outline-none focus:ring-2 focus:ring-sage-500 text-sm font-medium" placeholder="300">
+                </div>
+            </div>
+            <div class="flex gap-3 mt-6">
+                <button onclick="toggleModal('target-modal', false)" class="flex-1 py-2.5 px-4 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium text-sm">Batal</button>
+                <button onclick="saveTargets()" class="flex-1 py-2.5 px-4 rounded-xl bg-sage-600 hover:bg-sage-700 text-white font-medium text-sm shadow-sm">Simpan Target</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header & Navigasi -->
+    <header class="bg-white/90 backdrop-blur-md border-b border-sage-200/70 sticky top-0 z-30">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <!-- Brand & Tab Switcher -->
+                <div class="flex items-center justify-between gap-4">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-2xl bg-gradient-to-br from-sage-500 to-sage-700 text-white flex items-center justify-center shadow-sm">
+                            <i class="ph-fill ph-leaf text-lg"></i>
+                        </div>
+                        <div>
+                            <h1 class="font-display font-extrabold text-base sm:text-lg text-sage-900 leading-tight">NutriSage</h1>
+                            <p class="text-[11px] text-sage-600 font-medium hidden sm:block">Daily Diet & Habit Tracker</p>
+                        </div>
+                    </div>
+
+                    <!-- Tab Switcher -->
+                    <div class="flex items-center bg-sage-50 p-1 rounded-2xl border border-sage-200/80">
+                        <button id="tab-btn-daily" onclick="switchTab('daily')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all bg-sage-600 text-white shadow-sm">
+                            <i class="ph-bold ph-calendar-check"></i><span>Harian</span>
+                        </button>
+                        <button id="tab-btn-stats" onclick="switchTab('stats')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all text-sage-700 hover:text-sage-900">
+                            <i class="ph-bold ph-chart-line-up"></i><span>Rekap & Statistik</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Navigasi Tanggal & Target -->
+                <div class="flex items-center justify-between md:justify-end gap-2">
+                    <div id="date-nav-bar" class="flex items-center bg-sage-50 border border-sage-200/80 rounded-2xl p-1 flex-1 md:flex-initial justify-between">
+                        <button onclick="changeDate(-1)" class="p-1.5 rounded-xl text-sage-700 hover:bg-white transition-all"><i class="ph-bold ph-caret-left text-sm"></i></button>
+                        <div class="flex items-center px-2">
+                            <i class="ph ph-calendar-blank text-sage-600 mr-1.5 text-sm"></i>
+                            <input type="date" id="date-picker" onchange="selectDate(this.value)" class="bg-transparent text-xs sm:text-sm font-semibold text-sage-900 focus:outline-none cursor-pointer">
+                            <span id="today-badge" class="ml-1.5 px-2 py-0.5 text-[10px] font-bold uppercase bg-sage-600 text-white rounded-full hidden">Hari Ini</span>
+                        </div>
+                        <button onclick="changeDate(1)" class="p-1.5 rounded-xl text-sage-700 hover:bg-white transition-all"><i class="ph-bold ph-caret-right text-sm"></i></button>
+                    </div>
+
+                    <button onclick="goToToday()" id="btn-today" class="hidden sm:inline-flex px-3 py-2 rounded-2xl bg-sage-100 hover:bg-sage-200 text-sage-800 text-xs font-semibold">Hari Ini</button>
+                    <button onclick="openTargetModal()" class="p-2 sm:px-3 sm:py-2 rounded-2xl bg-white hover:bg-sage-50 text-sage-700 border border-sage-200 text-xs font-semibold inline-flex items-center gap-1.5" title="Atur Target">
+                        <i class="ph ph-sliders-horizontal text-base"></i><span class="hidden sm:inline">Target</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- ===================================================================== -->
+    <!-- VIEW 1: TRACKER HARIAN                                                -->
+    <!-- ===================================================================== -->
+    <main id="view-daily" class="max-w-6xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
+        <!-- 1. KPI Harian -->
+        <section class="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
+            <div class="bg-white rounded-3xl p-4 sm:p-5 border border-sage-100 card-shadow">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Kalori Masuk</span>
+                    <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center"><i class="ph-fill ph-fork-knife text-base"></i></div>
+                </div>
+                <div class="flex items-baseline gap-1.5">
+                    <span id="summary-cal-in" class="font-display text-2xl sm:text-3xl font-extrabold text-gray-900">0</span>
+                    <span class="text-xs font-medium text-gray-400">/ <span id="summary-target-in">1600</span> kkal</span>
+                </div>
+                <div class="w-full bg-gray-100 h-1.5 rounded-full mt-3 overflow-hidden"><div id="bar-cal-in" class="bg-amber-500 h-full rounded-full transition-all duration-500" style="width:0%"></div></div>
+            </div>
+
+            <div class="bg-white rounded-3xl p-4 sm:p-5 border border-sage-100 card-shadow">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Kalori Keluar</span>
+                    <div class="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="ph-fill ph-fire text-base"></i></div>
+                </div>
+                <div class="flex items-baseline gap-1.5">
+                    <span id="summary-cal-out" class="font-display text-2xl sm:text-3xl font-extrabold text-gray-900">0</span>
+                    <span class="text-xs font-medium text-gray-400">/ <span id="summary-target-out">300</span> kkal</span>
+                </div>
+                <div class="w-full bg-gray-100 h-1.5 rounded-full mt-3 overflow-hidden"><div id="bar-cal-out" class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width:0%"></div></div>
+            </div>
+
+            <div class="bg-white rounded-3xl p-4 sm:p-5 border border-sage-100 card-shadow">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Net Kalori</span>
+                    <div class="w-8 h-8 rounded-xl bg-sage-100 text-sage-700 flex items-center justify-center"><i class="ph-fill ph-scales text-base"></i></div>
+                </div>
+                <div class="flex items-baseline gap-1.5">
+                    <span id="summary-net-cal" class="font-display text-2xl sm:text-3xl font-extrabold text-sage-800">0</span>
+                    <span class="text-xs font-medium text-gray-400">kkal</span>
+                </div>
+                <p id="summary-net-status" class="text-xs font-medium text-sage-600 mt-2.5 truncate">Sisa kuota: 1600 kkal</p>
+            </div>
+
+            <div class="bg-white rounded-3xl p-4 sm:p-5 border border-sage-100 card-shadow">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Berat & Tantangan</span>
+                    <div class="w-8 h-8 rounded-xl bg-terracotta-50 text-terracotta-500 flex items-center justify-center"><i class="ph-fill ph-medal text-base"></i></div>
+                </div>
+                <div class="flex items-baseline justify-between">
+                    <div>
+                        <span id="summary-weight" class="font-display text-xl sm:text-2xl font-extrabold text-gray-900">—</span>
+                        <span id="summary-weight-unit" class="text-xs font-medium text-gray-400">kg</span>
+                    </div>
+                    <span id="summary-habits-badge" class="px-2.5 py-1 rounded-xl text-xs font-bold bg-sage-100 text-sage-700">0/3 Pantangan</span>
+                </div>
+                <p id="summary-weight-time" class="text-xs text-gray-400 mt-2.5 truncate">Belum ada data timbangan</p>
+            </div>
+        </section>
+
+        <!-- 2. Checklist Diet Pantangan -->
+        <section class="bg-white rounded-3xl p-5 sm:p-6 border border-sage-100 card-shadow">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-5">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h2 class="font-display text-lg font-bold text-gray-900">Tantangan Diet Pantangan</h2>
+                        <span id="clean-eating-badge" class="hidden items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-sage-500 to-emerald-600 text-white shadow-sm">
+                            <i class="ph-fill ph-sparkle"></i> Clean Eating Day!
+                        </span>
+                    </div>
+                    <p class="text-xs sm:text-sm text-gray-500 mt-0.5">Centang jika berhasil menghindari pantangan berikut sepanjang hari ini.</p>
+                </div>
+                <div class="text-xs font-semibold text-sage-700 bg-sage-50 px-3 py-1.5 rounded-xl border border-sage-200/70 self-start sm:self-auto">
+                    Skor Kepatuhan: <span id="habit-percent">0%</span>
+                </div>
+            </div>
+            <div id="habits-grid" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+        </section>
+
+        <!-- 3. Kalori Masuk & Keluar -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Kalori Masuk -->
+            <div class="bg-white rounded-3xl p-5 sm:p-6 border border-sage-100 card-shadow flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center"><i class="ph-fill ph-bowl-food text-xl"></i></div>
+                        <div><h2 class="font-display text-lg font-bold text-gray-900">Kalori Masuk</h2><p class="text-xs text-gray-500">Catat makanan & minuman</p></div>
+                    </div>
+                    <span class="px-3 py-1 rounded-full bg-amber-50 text-amber-700 font-bold text-xs">Total: <span id="list-total-in">0</span> kkal</span>
+                </div>
+                <form onsubmit="addFoodItem(event)" class="bg-sage-50/70 p-3.5 rounded-2xl border border-sage-200/60 mb-4 space-y-2.5">
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                        <input type="text" id="food-name" required placeholder="Nama makanan (misal: Dada ayam rebus)" class="sm:col-span-6 px-3.5 py-2.5 rounded-xl bg-white border border-sage-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500">
+                        <select id="food-meal" class="sm:col-span-3 px-3 py-2.5 rounded-xl bg-white border border-sage-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-sage-500">
+                            <option>Sarapan</option><option>Makan Siang</option><option>Makan Malam</option><option>Camilan</option>
+                        </select>
+                        <input type="number" id="food-cal" required min="1" max="5000" placeholder="kkal" class="sm:col-span-3 px-3.5 py-2.5 rounded-xl bg-white border border-sage-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500">
+                    </div>
+                    <button type="submit" class="w-full py-2.5 px-4 rounded-xl bg-sage-600 hover:bg-sage-700 text-white font-semibold text-sm flex items-center justify-center gap-1.5 shadow-sm">
+                        <i class="ph-bold ph-plus"></i><span>Tambah Asupan Makanan</span>
+                    </button>
+                </form>
+                <div id="food-list" class="space-y-2.5 flex-1 max-h-80 overflow-y-auto pr-1"></div>
+            </div>
+
+            <!-- Kalori Keluar -->
+            <div class="bg-white rounded-3xl p-5 sm:p-6 border border-sage-100 card-shadow flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="ph-fill ph-sneaker-move text-xl"></i></div>
+                        <div><h2 class="font-display text-lg font-bold text-gray-900">Kalori Keluar</h2><p class="text-xs text-gray-500">Catat olahraga & aktivitas fisik</p></div>
+                    </div>
+                    <span class="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 font-bold text-xs">Total: <span id="list-total-out">0</span> kkal</span>
+                </div>
+                <form onsubmit="addExerciseItem(event)" class="bg-sage-50/70 p-3.5 rounded-2xl border border-sage-200/60 mb-4 space-y-2.5">
+                    <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                        <input type="text" id="exercise-name" required placeholder="Aktivitas (misal: Jalan cepat)" class="sm:col-span-6 px-3.5 py-2.5 rounded-xl bg-white border border-sage-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500">
+                        <input type="number" id="exercise-duration" required min="1" max="600" placeholder="Menit" class="sm:col-span-3 px-3.5 py-2.5 rounded-xl bg-white border border-sage-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500">
+                        <input type="number" id="exercise-cal" required min="1" max="5000" placeholder="kkal" class="sm:col-span-3 px-3.5 py-2.5 rounded-xl bg-white border border-sage-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500">
+                    </div>
+                    <button type="submit" class="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm flex items-center justify-center gap-1.5 shadow-sm">
+                        <i class="ph-bold ph-plus"></i><span>Tambah Aktivitas Fisik</span>
+                    </button>
+                </form>
+                <div id="exercise-list" class="space-y-2.5 flex-1 max-h-80 overflow-y-auto pr-1"></div>
+            </div>
+        </section>
+
+        <!-- 4. Timbangan & Jurnal -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div class="lg:col-span-7 bg-white rounded-3xl p-5 sm:p-6 border border-sage-100 card-shadow">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-sage-100 text-sage-700 flex items-center justify-center"><i class="ph-fill ph-person-arms-spread text-xl"></i></div>
+                        <div><h2 class="font-display text-lg font-bold text-gray-900">Timbangan Berat Badan</h2><p class="text-xs text-gray-500">Pantau berat badan atau pilih skip</p></div>
+                    </div>
+                    <div class="inline-flex p-1 rounded-2xl bg-sage-50 border border-sage-200/80 self-start">
+                        <button type="button" id="btn-weigh-yes" onclick="setWeighStatus(true)" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold">Menimbang</button>
+                        <button type="button" id="btn-weigh-no" onclick="setWeighStatus(false)" class="px-3.5 py-1.5 rounded-xl text-xs font-semibold">Tidak Menimbang</button>
+                    </div>
+                </div>
+
+                <div id="weigh-form-container" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Berat Badan (kg)</label>
+                        <div class="relative">
+                            <input type="number" id="weight-value" step="0.1" min="20" max="300" oninput="saveWeightData()" placeholder="55.4" class="w-full px-3.5 py-2.5 rounded-xl border border-sage-200 text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-sage-500">
+                            <span class="absolute right-3.5 top-2.5 text-xs font-semibold text-gray-400">kg</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Jam Menimbang</label>
+                        <input type="time" id="weight-time" oninput="saveWeightData()" class="w-full px-3.5 py-2.5 rounded-xl border border-sage-200 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-sage-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Kondisi / Catatan</label>
+                        <input type="text" id="weight-note" oninput="saveWeightData()" placeholder="Bangun tidur, perut kosong" class="w-full px-3.5 py-2.5 rounded-xl border border-sage-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-sage-500">
+                    </div>
+                </div>
+
+                <div id="weigh-skip-container" class="hidden rounded-2xl bg-sage-50/80 border border-sage-200/70 p-4 flex items-center gap-3.5">
+                    <div class="w-10 h-10 rounded-2xl bg-white text-sage-600 flex items-center justify-center shrink-0 shadow-sm"><i class="ph-fill ph-smiley-wink text-2xl"></i></div>
+                    <div>
+                        <h4 class="font-display font-bold text-sm text-sage-900">Tidak Menimbang Hari Ini (Skip)</h4>
+                        <p class="text-xs text-sage-700 mt-0.5 leading-relaxed">Fluktuasi berat harian itu wajar. Tetap fokus pada konsistensi pola makan bersih hari ini.</p>
+                    </div>
+                </div>
+
+                <div class="mt-5 pt-4 border-t border-gray-100">
+                    <div class="flex items-center justify-between mb-2.5">
+                        <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Riwayat Timbangan Terakhir</span>
+                        <span class="text-[11px] text-gray-400">Otomatis tersimpan</span>
+                    </div>
+                    <div id="weight-history-list" class="flex gap-2.5 overflow-x-auto pb-1"></div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-5 bg-white rounded-3xl p-5 sm:p-6 border border-sage-100 card-shadow flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center gap-2.5 mb-3">
+                        <div class="w-9 h-9 rounded-xl bg-terracotta-50 text-terracotta-500 flex items-center justify-center"><i class="ph-fill ph-notebook text-xl"></i></div>
+                        <div><h2 class="font-display text-lg font-bold text-gray-900">Jurnal & Refleksi Harian</h2><p class="text-xs text-gray-500">Catat energi, mood, atau pengingat</p></div>
+                    </div>
+                    <textarea id="daily-journal" rows="4" oninput="saveJournal(this.value)" placeholder="Bagaimana perasaan tubuhmu hari ini?" class="w-full p-3.5 rounded-2xl bg-cream border border-sage-200/80 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sage-500 resize-none"></textarea>
+                </div>
+                <div class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2">
+                    <button type="button" onclick="exportDataJSON()" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sage-50 hover:bg-sage-100 text-sage-800 text-xs font-semibold border border-sage-200/80">
+                        <i class="ph-bold ph-download-simple text-sm"></i><span>Backup JSON</span>
+                    </button>
+                    <button type="button" onclick="openResetModal()" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold">
+                        <i class="ph-bold ph-arrow-counter-clockwise text-sm"></i><span>Reset Hari Ini</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ===================================================================== -->
+    <!-- VIEW 2: REKAP & STATISTIK (ANALYTICS DASHBOARD)                       -->
+    <!-- ===================================================================== -->
+    <main id="view-stats" class="hidden max-w-6xl mx-auto px-4 sm:px-6 pt-6 space-y-6">
+        <!-- Header & Filter Periode -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-3xl p-5 border border-sage-100 card-shadow">
+            <div>
+                <h2 class="font-display text-xl font-bold text-gray-900">Rekap & Statistik Perjalanan Diet</h2>
+                <p class="text-xs text-gray-500 mt-0.5">Analisis tren berat badan, rata-rata kalori, dan konsistensi pantangan.</p>
+            </div>
+            <div class="flex items-center gap-2 self-start sm:self-auto">
+                <select id="stats-range" onchange="renderAnalytics()" class="px-3.5 py-2 rounded-xl bg-sage-50 border border-sage-200 text-xs font-bold text-sage-800 focus:outline-none">
+                    <option value="7">7 Hari Terakhir</option>
+                    <option value="14">14 Hari Terakhir</option>
+                    <option value="30">30 Hari Terakhir</option>
+                    <option value="all" selected>Semua Hari Tercatat</option>
+                </select>
+                <button onclick="exportDataJSON()" class="px-3.5 py-2 rounded-xl bg-sage-600 hover:bg-sage-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm">
+                    <i class="ph-bold ph-download-simple"></i><span>Export</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 4 Kartu KPI Statistik -->
+        <section class="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4" id="stats-kpi-grid"></section>
+
+        <!-- Grafik Tren Berat Badan & Grafik Kalori -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Grafik Berat Badan -->
+            <div class="bg-white rounded-3xl p-5 sm:p-6 border border-sage-100 card-shadow">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="font-display text-base font-bold text-gray-900">Tren Berat Badan (kg)</h3>
+                        <p class="text-xs text-gray-500">Perubahan berat badan dari hari ke hari</p>
+                    </div>
+                    <span id="weight-delta-badge" class="px-2.5 py-1 rounded-xl text-xs font-bold bg-sage-100 text-sage-800">—</span>
+                </div>
+                <div id="weight-chart-box" class="w-full h-56 flex items-center justify-center bg-cream/60 rounded-2xl border border-sage-100 p-3"></div>
+            </div>
+
+            <!-- Grafik Kalori Masuk vs Keluar -->
+            <div class="bg-white rounded-3xl p-5 sm:p-6 border border-sage-100 card-shadow">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="font-display text-base font-bold text-gray-900">Kalori Masuk vs Keluar</h3>
+                        <p class="text-xs text-gray-500">Perbandingan harian (maks 14 hari terakhir di grafik)</p>
+                    </div>
+                    <div class="flex items-center gap-3 text-[11px] font-semibold">
+                        <span class="flex items-center gap-1 text-amber-700"><span class="w-2.5 h-2.5 rounded-sm bg-amber-400 inline-block"></span>Masuk</span>
+                        <span class="flex items-center gap-1 text-emerald-700"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500 inline-block"></span>Keluar</span>
+                    </div>
+                </div>
+                <div id="calorie-chart-box" class="w-full h-56 flex items-center justify-center bg-cream/60 rounded-2xl border border-sage-100 p-3"></div>
+            </div>
+        </section>
+
+        <!-- Kepatuhan Diet Pantangan -->
+        <section class="bg-white rounded-3xl p-5 sm:p-6 border border-sage-100 card-shadow">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                <div>
+                    <h3 class="font-display text-base font-bold text-gray-900">Tingkat Kepatuhan Diet Pantangan</h3>
+                    <p class="text-xs text-gray-500">Persentase keberhasilan menghindari gula, minyak, dan tepung pada hari aktif</p>
+                </div>
+                <span id="clean-days-summary" class="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl self-start">0 Clean Eating Days</span>
+            </div>
+            <div id="habits-stats-bars" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+        </section>
+
+        <!-- Tabel Riwayat Seluruh Hari -->
+        <section class="bg-white rounded-3xl p-5 sm:p-6 border border-sage-100 card-shadow">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                <div>
+                    <h3 class="font-display text-base font-bold text-gray-900">Riwayat Seluruh Hari Tercatat</h3>
+                    <p class="text-xs text-gray-500">Klik baris tanggal untuk membuka atau mengedit catatan hari tersebut</p>
+                </div>
+                <span id="history-count-badge" class="text-xs font-semibold text-sage-700 bg-sage-50 px-3 py-1 rounded-xl border border-sage-200/70 self-start">0 Hari</span>
+            </div>
+            <div class="overflow-x-auto rounded-2xl border border-sage-100">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-sage-50/80 text-[11px] font-bold uppercase tracking-wider text-sage-800 border-b border-sage-200/70">
+                            <th class="py-3 px-4">Tanggal</th>
+                            <th class="py-3 px-3">Berat</th>
+                            <th class="py-3 px-3">Masuk</th>
+                            <th class="py-3 px-3">Keluar</th>
+                            <th class="py-3 px-3">Net</th>
+                            <th class="py-3 px-3">Pantangan</th>
+                            <th class="py-3 px-4">Catatan Jurnal</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body" class="divide-y divide-sage-100 text-xs"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const STORAGE_KEY = 'nutrisage_diet_tracker_v1', SETTINGS_KEY = 'nutrisage_diet_settings_v1';
+        const HABIT_META = [
+            { key: 'sugar', title: 'Diet Gula', desc: 'Bebas gula tambahan & minuman manis', icon: 'ph-cookie', bg: 'bg-pink-50 text-pink-500', bar: 'bg-pink-500', ph: 'Catatan (misal: Teh tawar)' },
+            { key: 'oil', title: 'Diet Minyak', desc: 'Bebas gorengan & minyak berlebih', icon: 'ph-drop', bg: 'bg-amber-50 text-amber-500', bar: 'bg-amber-500', ph: 'Catatan (misal: Lauk kukus)' },
+            { key: 'flour', title: 'Diet Tepung', desc: 'Bebas terigu, roti, mie & gorengan', icon: 'ph-grains', bg: 'bg-orange-50 text-orange-500', bar: 'bg-orange-500', ph: 'Catatan (misal: Karbo ubi)' }
+        ];
+        const MEAL_BADGES = { 'Sarapan': 'bg-amber-100 text-amber-800', 'Makan Siang': 'bg-sage-100 text-sage-800', 'Makan Malam': 'bg-indigo-100 text-indigo-800', 'Camilan': 'bg-pink-100 text-pink-800' };
+
+        const $ = id => document.getElementById(id);
+        const esc = s => { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; };
+        const getTodayStr = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]; };
+
+        let currentDate = getTodayStr(), currentTab = 'daily', allData = {}, settings = { targetIn: 1600, targetOut: 300 };
+
+        const emptyDay = () => ({
+            foods: [], exercises: [],
+            weight: { isWeighing: true, value: '', time: '06:30', note: '' },
+            habits: { sugar: { done: false, note: '' }, oil: { done: false, note: '' }, flour: { done: false, note: '' } },
+            journal: ''
+        });
+
+        function loadStorage() {
+            try {
+                allData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+                settings = { ...settings, ...(JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}) };
+            } catch (e) { console.error(e); }
+        }
+        const saveStorage = () => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(allData)); } catch { showToast('Gagal menyimpan data.', 'error'); } };
+        const getDay = (d = currentDate) => (allData[d] ||= emptyDay());
+
+        // Cek apakah suatu tanggal memiliki aktivitas/catatan nyata
+        function hasRecord(d) {
+            if (!d) return false;
+            return (d.foods?.length > 0) || (d.exercises?.length > 0) || (d.weight?.isWeighing && d.weight?.value !== '') ||
+                   !d.weight?.isWeighing || d.habits?.sugar?.done || d.habits?.oil?.done || d.habits?.flour?.done || (d.journal?.trim().length > 0);
+        }
+
+        // Navigasi Tab & Tanggal
+        function switchTab(tab) {
+            currentTab = tab;
+            const isDaily = tab === 'daily';
+            $('view-daily').classList.toggle('hidden', !isDaily);
+            $('view-stats').classList.toggle('hidden', isDaily);
+            $('date-nav-bar').classList.toggle('hidden', !isDaily);
+            if (!isDaily) $('btn-today').classList.add('hidden');
+            else $('btn-today').classList.toggle('hidden', currentDate === getTodayStr());
+
+            $('tab-btn-daily').className = `flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${isDaily ? 'bg-sage-600 text-white shadow-sm' : 'text-sage-700 hover:text-sage-900'}`;
+            $('tab-btn-stats').className = `flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${!isDaily ? 'bg-sage-600 text-white shadow-sm' : 'text-sage-700 hover:text-sage-900'}`;
+            isDaily ? renderAll() : renderAnalytics();
+        }
+
+        function selectDate(d) { if (!d) return; currentDate = d; if (currentTab !== 'daily') switchTab('daily'); else renderAll(); }
+        function changeDate(delta) {
+            const [y, m, d] = currentDate.split('-').map(Number);
+            const dt = new Date(y, m - 1, d + delta);
+            currentDate = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+            renderAll();
+        }
+        const goToToday = () => { currentDate = getTodayStr(); renderAll(); };
+        const formatDateIndo = (d, short = false) => {
+            const [y, m, day] = d.split('-').map(Number);
+            return new Date(y, m - 1, day).toLocaleDateString('id-ID', short ? { day: 'numeric', month: 'short', year: '2-digit' } : { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+        };
+
+        // Modals & Target
+        function toggleModal(id, show) {
+            const el = $(id);
+            el.classList.toggle('hidden', !show);
+            el.classList.toggle('flex', show);
+        }
+        function openTargetModal() { $('input-target-in').value = settings.targetIn; $('input-target-out').value = settings.targetOut; toggleModal('target-modal', true); }
+        function saveTargets() {
+            const tIn = parseInt($('input-target-in').value, 10), tOut = parseInt($('input-target-out').value, 10);
+            if (tIn > 0) settings.targetIn = tIn;
+            if (tOut >= 0) settings.targetOut = tOut;
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+            toggleModal('target-modal', false);
+            currentTab === 'daily' ? renderAll() : renderAnalytics();
+            showToast('Target harian diperbarui!');
+        }
+        function openResetModal() { $('modal-date-label').textContent = formatDateIndo(currentDate); toggleModal('reset-modal', true); }
+        function confirmResetDay() { allData[currentDate] = emptyDay(); saveStorage(); toggleModal('reset-modal', false); renderAll(); showToast('Data tanggal ini direset.'); }
+
+        // CRUD Makanan & Olahraga
+        function addFoodItem(e) {
+            e.preventDefault();
+            const name = $('food-name').value.trim(), meal = $('food-meal').value, cal = parseInt($('food-cal').value, 10);
+            if (!name || !(cal > 0)) return;
+            getDay().foods.push({ id: Date.now(), name, meal, cal });
+            $('food-name').value = ''; $('food-cal').value = ''; $('food-name').focus();
+            saveStorage(); renderAll(); showToast(`+${cal} kkal (${name}) ditambahkan`);
+        }
+        function deleteFoodItem(id) { const d = getDay(); d.foods = d.foods.filter(x => x.id !== id); saveStorage(); renderAll(); }
+
+        function addExerciseItem(e) {
+            e.preventDefault();
+            const name = $('exercise-name').value.trim(), duration = parseInt($('exercise-duration').value, 10), cal = parseInt($('exercise-cal').value, 10);
+            if (!name || !(duration > 0) || !(cal > 0)) return;
+            getDay().exercises.push({ id: Date.now(), name, duration, cal });
+            $('exercise-name').value = ''; $('exercise-duration').value = ''; $('exercise-cal').value = ''; $('exercise-name').focus();
+            saveStorage(); renderAll(); showToast(`Aktivitas "${name}" (-${cal} kkal) dicatat`);
+        }
+        function deleteExerciseItem(id) { const d = getDay(); d.exercises = d.exercises.filter(x => x.id !== id); saveStorage(); renderAll(); }
+
+        // Habits, Timbangan & Jurnal
+        function toggleHabit(key) {
+            const h = getDay().habits[key];
+            h.done = !h.done; saveStorage(); renderAll();
+            if (h.done) showToast(`Mantap! ${HABIT_META.find(x => x.key === key).title} berhasil!`);
+        }
+        function updateHabitNote(key, val) { getDay().habits[key].note = val; saveStorage(); }
+        function setWeighStatus(status) { getDay().weight.isWeighing = status; saveStorage(); renderAll(); }
+        function saveWeightData() {
+            const w = getDay().weight;
+            w.value = $('weight-value').value; w.time = $('weight-time').value; w.note = $('weight-note').value;
+            saveStorage(); renderSummaryAndHistory();
+        }
+        function saveJournal(val) { getDay().journal = val; saveStorage(); }
+
+        function exportDataJSON() {
+            const a = document.createElement('a');
+            a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ exportedAt: new Date().toISOString(), settings, records: allData }, null, 2));
+            a.download = `nutrisage-backup-${getTodayStr()}.json`;
+            document.body.appendChild(a); a.click(); a.remove();
+            showToast('Backup JSON berhasil diunduh!');
+        }
+
+        // =====================================================================
+        // RENDER HARIAN
+        // =====================================================================
+        function renderAll() {
+            const day = getDay(), isToday = currentDate === getTodayStr();
+            $('date-picker').value = currentDate;
+            $('today-badge').classList.toggle('hidden', !isToday);
+            $('btn-today').classList.toggle('hidden', isToday);
+
+            // Makanan
+            $('food-list').innerHTML = day.foods.length ? day.foods.map(i => `
+                <div class="flex items-center justify-between p-3 rounded-2xl bg-cream hover:bg-sage-50/70 border border-sage-100">
+                    <div class="flex items-center gap-2 min-w-0 pr-2">
+                        <span class="px-2 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${MEAL_BADGES[i.meal] || 'bg-gray-100'}">${i.meal}</span>
+                        <p class="text-sm font-semibold text-gray-800 truncate">${esc(i.name)}</p>
+                    </div>
+                    <div class="flex items-center gap-2.5 shrink-0">
+                        <span class="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg">+${i.cal} kkal</span>
+                        <button onclick="deleteFoodItem(${i.id})" class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50"><i class="ph ph-trash text-base"></i></button>
+                    </div>
+                </div>`).join('') : `<div class="text-center py-8 rounded-2xl border border-dashed border-sage-200 bg-cream/50"><i class="ph ph-bowl-steam text-3xl text-sage-300"></i><p class="text-xs font-medium text-gray-500 mt-1">Belum ada makanan dicatat.</p></div>`;
+
+            // Olahraga
+            $('exercise-list').innerHTML = day.exercises.length ? day.exercises.map(i => `
+                <div class="flex items-center justify-between p-3 rounded-2xl bg-cream hover:bg-sage-50/70 border border-sage-100">
+                    <div class="min-w-0 pr-2">
+                        <p class="text-sm font-semibold text-gray-800 truncate">${esc(i.name)}</p>
+                        <p class="text-xs text-gray-500 flex items-center gap-1 mt-0.5"><i class="ph ph-clock"></i>${i.duration} menit</p>
+                    </div>
+                    <div class="flex items-center gap-2.5 shrink-0">
+                        <span class="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg">-${i.cal} kkal</span>
+                        <button onclick="deleteExerciseItem(${i.id})" class="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50"><i class="ph ph-trash text-base"></i></button>
+                    </div>
+                </div>`).join('') : `<div class="text-center py-8 rounded-2xl border border-dashed border-sage-200 bg-cream/50"><i class="ph ph-person-simple-run text-3xl text-sage-300"></i><p class="text-xs font-medium text-gray-500 mt-1">Belum ada aktivitas fisik dicatat.</p></div>`;
+
+            // Habits
+            $('habits-grid').innerHTML = HABIT_META.map(m => {
+                const h = day.habits[m.key];
+                return `
+                <div class="rounded-2xl border-2 p-4 transition-all ${h.done ? 'border-sage-500 bg-sage-50/80' : 'border-gray-100 bg-cream/60 hover:border-sage-200'}">
+                    <div class="flex items-start justify-between gap-3 cursor-pointer" onclick="toggleHabit('${m.key}')">
+                        <div class="flex items-center gap-3">
+                            <div class="w-11 h-11 rounded-2xl ${m.bg} flex items-center justify-center shrink-0"><i class="ph-fill ${m.icon} text-2xl"></i></div>
+                            <div><h3 class="font-display font-bold text-gray-900 text-base">${m.title}</h3><p class="text-xs text-gray-500">${m.desc}</p></div>
+                        </div>
+                        <button type="button" class="w-7 h-7 rounded-xl border-2 flex items-center justify-center text-white shrink-0 mt-0.5 ${h.done ? 'border-sage-600 bg-sage-600' : 'border-gray-300'}"><i class="ph-bold ph-check text-sm"></i></button>
+                    </div>
+                    <div class="mt-3.5 pt-3 border-t border-gray-200/60">
+                        <input type="text" value="${esc(h.note || '')}" oninput="updateHabitNote('${m.key}', this.value)" placeholder="${m.ph}" class="w-full bg-white/80 text-xs text-gray-700 px-3 py-2 rounded-xl border border-gray-200/80 focus:outline-none focus:border-sage-400">
+                    </div>
+                </div>`;
+            }).join('');
+
+            // Timbangan & Jurnal
+            const w = day.weight;
+            $('btn-weigh-yes').className = `px-3.5 py-1.5 rounded-xl text-xs font-semibold ${w.isWeighing ? 'bg-sage-600 text-white shadow-sm' : 'text-gray-600'}`;
+            $('btn-weigh-no').className = `px-3.5 py-1.5 rounded-xl text-xs font-semibold ${!w.isWeighing ? 'bg-sage-600 text-white shadow-sm' : 'text-gray-600'}`;
+            $('weigh-form-container').classList.toggle('hidden', !w.isWeighing);
+            $('weigh-skip-container').classList.toggle('hidden', w.isWeighing);
+            $('weight-value').value = w.value || ''; $('weight-time').value = w.time || '06:30'; $('weight-note').value = w.note || '';
+            $('daily-journal').value = day.journal || '';
+
+            renderSummaryAndHistory();
+        }
+
+        function renderSummaryAndHistory() {
+            const day = getDay();
+            const totalIn = day.foods.reduce((s, i) => s + i.cal, 0);
+            const totalOut = day.exercises.reduce((s, i) => s + i.cal, 0);
+            const net = totalIn - totalOut, rem = settings.targetIn - net;
+
+            $('summary-cal-in').textContent = totalIn.toLocaleString('id-ID');
+            $('summary-target-in').textContent = settings.targetIn.toLocaleString('id-ID');
+            $('list-total-in').textContent = totalIn.toLocaleString('id-ID');
+            $('summary-cal-out').textContent = totalOut.toLocaleString('id-ID');
+            $('summary-target-out').textContent = settings.targetOut.toLocaleString('id-ID');
+            $('list-total-out').textContent = totalOut.toLocaleString('id-ID');
+
+            const barIn = $('bar-cal-in');
+            barIn.style.width = `${Math.min(100, Math.round((totalIn / settings.targetIn) * 100))}%`;
+            barIn.className = `${totalIn > settings.targetIn ? 'bg-red-500' : 'bg-amber-500'} h-full rounded-full transition-all duration-500`;
+            $('bar-cal-out').style.width = `${settings.targetOut > 0 ? Math.min(100, Math.round((totalOut / settings.targetOut) * 100)) : 100}%`;
+
+            $('summary-net-cal').textContent = net.toLocaleString('id-ID');
+            const netEl = $('summary-net-status');
+            netEl.textContent = rem >= 0 ? `Sisa kuota bersih: ${rem.toLocaleString('id-ID')} kkal` : `Melebihi batas: +${Math.abs(rem).toLocaleString('id-ID')} kkal`;
+            netEl.className = `text-xs mt-2.5 truncate ${rem >= 0 ? 'font-medium text-sage-600' : 'font-semibold text-red-500'}`;
+
+            const doneCount = HABIT_META.filter(m => day.habits[m.key].done).length;
+            $('habit-percent').textContent = `${Math.round((doneCount / 3) * 100)}%`;
+            $('summary-habits-badge').textContent = `${doneCount}/3 Pantangan`;
+            $('clean-eating-badge').classList.toggle('hidden', doneCount !== 3);
+            $('clean-eating-badge').classList.toggle('inline-flex', doneCount === 3);
+
+            const w = day.weight;
+            if (!w.isWeighing) { $('summary-weight').textContent = 'Skip'; $('summary-weight-unit').textContent = ''; $('summary-weight-time').textContent = 'Tidak menimbang hari ini'; }
+            else if (w.value) { $('summary-weight').textContent = parseFloat(w.value).toFixed(1); $('summary-weight-unit').textContent = 'kg'; $('summary-weight-time').textContent = `Pukul ${w.time || '--:--'}`; }
+            else { $('summary-weight').textContent = '—'; $('summary-weight-unit').textContent = 'kg'; $('summary-weight-time').textContent = 'Belum diisi hari ini'; }
+
+            const weights = Object.keys(allData).sort().reverse().filter(d => allData[d].weight?.isWeighing && allData[d].weight?.value).slice(0, 6);
+            $('weight-history-list').innerHTML = weights.length ? weights.map(d => {
+                const entry = allData[d].weight, active = d === currentDate;
+                return `<button type="button" onclick="selectDate('${d}')" class="shrink-0 px-3 py-2 rounded-2xl border text-left transition-all ${active ? 'bg-sage-600 text-white border-sage-600 shadow-sm' : 'bg-cream hover:bg-sage-50 text-gray-800 border-sage-200/70'}">
+                    <div class="text-[10px] font-semibold ${active ? 'text-sage-100' : 'text-gray-400'}">${d.slice(5).split('-').reverse().join('/')} • ${entry.time || ''}</div>
+                    <div class="font-display font-bold text-sm mt-0.5">${parseFloat(entry.value).toFixed(1)} <span class="text-[10px] font-normal">kg</span></div>
+                </button>`;
+            }).join('') : `<p class="text-xs text-gray-400 italic">Belum ada riwayat timbangan tercatat.</p>`;
+        }
+
+        // =====================================================================
+        // RENDER ANALYTICS & REKAP DASHBOARD
+        // =====================================================================
+        function renderAnalytics() {
+            const rangeVal = $('stats-range').value;
+            let activeDates = Object.keys(allData).filter(d => hasRecord(allData[d])).sort();
+
+            if (rangeVal !== 'all' && activeDates.length) {
+                const days = parseInt(rangeVal, 10);
+                const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - (days - 1));
+                const cutoffStr = new Date(cutoff.getTime() - cutoff.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+                activeDates = activeDates.filter(d => d >= cutoffStr);
+            }
+
+            const records = activeDates.map(date => {
+                const d = allData[date];
+                const calIn = d.foods.reduce((s, i) => s + i.cal, 0);
+                const calOut = d.exercises.reduce((s, i) => s + i.cal, 0);
+                const habitsDone = HABIT_META.filter(m => d.habits[m.key]?.done).length;
+                const weightVal = (d.weight?.isWeighing && d.weight?.value !== '') ? parseFloat(d.weight.value) : null;
+                return { date, calIn, calOut, net: calIn - calOut, habitsDone, weightVal, isSkip: !d.weight?.isWeighing, habits: d.habits, journal: d.journal || '' };
+            });
+
+            const totalDays = records.length;
+            const foodDays = records.filter(r => r.calIn > 0);
+            const avgIn = foodDays.length ? Math.round(foodDays.reduce((s, r) => s + r.calIn, 0) / foodDays.length) : 0;
+            const avgOut = totalDays ? Math.round(records.reduce((s, r) => s + r.calOut, 0) / totalDays) : 0;
+            const avgCompliance = totalDays ? Math.round((records.reduce((s, r) => s + r.habitsDone, 0) / (totalDays * 3)) * 100) : 0;
+            const cleanDays = records.filter(r => r.habitsDone === 3).length;
+
+            // 1. KPI Statistik
+            $('stats-kpi-grid').innerHTML = [
+                { label: 'Total Hari Aktif', val: `${totalDays}`, unit: 'hari', sub: `${cleanDays} Clean Eating Day`, icon: 'ph-calendar-check', color: 'bg-sage-100 text-sage-700' },
+                { label: 'Rata-rata Masuk', val: avgIn.toLocaleString('id-ID'), unit: 'kkal/hari', sub: `Target: ${settings.targetIn.toLocaleString('id-ID')} kkal`, icon: 'ph-fork-knife', color: 'bg-amber-50 text-amber-600' },
+                { label: 'Rata-rata Keluar', val: avgOut.toLocaleString('id-ID'), unit: 'kkal/hari', sub: `Target: ${settings.targetOut.toLocaleString('id-ID')} kkal`, icon: 'ph-fire', color: 'bg-emerald-50 text-emerald-600' },
+                { label: 'Kepatuhan Diet', val: `${avgCompliance}%`, unit: '', sub: 'Bebas gula, minyak, tepung', icon: 'ph-medal', color: 'bg-terracotta-50 text-terracotta-500' }
+            ].map(k => `
+                <div class="bg-white rounded-3xl p-4 sm:p-5 border border-sage-100 card-shadow">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">${k.label}</span>
+                        <div class="w-8 h-8 rounded-xl ${k.color} flex items-center justify-center"><i class="ph-fill ${k.icon} text-base"></i></div>
+                    </div>
+                    <div class="flex items-baseline gap-1.5">
+                        <span class="font-display text-2xl sm:text-3xl font-extrabold text-gray-900">${k.val}</span>
+                        <span class="text-xs font-medium text-gray-400">${k.unit}</span>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2 truncate">${k.sub}</p>
+                </div>`).join('');
+
+            // 2. Grafik Tren Berat Badan (SVG Line Chart)
+            const wRecs = records.filter(r => r.weightVal !== null);
+            const deltaBadge = $('weight-delta-badge');
+            if (wRecs.length >= 2) {
+                const diff = (wRecs[wRecs.length - 1].weightVal - wRecs[0].weightVal).toFixed(1);
+                deltaBadge.textContent = `${diff > 0 ? '+' : ''}${diff} kg`;
+                deltaBadge.className = `px-2.5 py-1 rounded-xl text-xs font-bold ${diff <= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`;
+            } else {
+                deltaBadge.textContent = wRecs.length === 1 ? `${wRecs[0].weightVal.toFixed(1)} kg` : 'Belum ada data';
+                deltaBadge.className = 'px-2.5 py-1 rounded-xl text-xs font-bold bg-sage-100 text-sage-800';
+            }
+
+            if (wRecs.length === 0) {
+                $('weight-chart-box').innerHTML = `<p class="text-xs text-gray-400 italic">Belum ada data berat badan pada periode ini.</p>`;
+            } else {
+                const W = 460, H = 180, padX = 36, padY = 26;
+                const vals = wRecs.map(r => r.weightVal);
+                const minW = Math.min(...vals) - 0.5, maxW = Math.max(...vals) + 0.5;
+                const getX = i => wRecs.length === 1 ? W / 2 : padX + (i / (wRecs.length - 1)) * (W - padX * 2);
+                const getY = v => H - padY - ((v - minW) / (maxW - minW || 1)) * (H - padY * 2);
+                const pts = wRecs.map((r, i) => ({ x: getX(i), y: getY(r.weightVal), val: r.weightVal.toFixed(1), lbl: r.date.slice(5).split('-').reverse().join('/') }));
+                const poly = pts.map(p => `${p.x},${p.y}`).join(' ');
+                const area = `${pts[0].x},${H - padY} ${poly} ${pts[pts.length - 1].x},${H - padY}`;
+
+                $('weight-chart-box').innerHTML = `
+                <svg viewBox="0 0 ${W} ${H}" class="w-full h-full overflow-visible">
+                    <defs><linearGradient id="wGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#537e56" stop-opacity="0.28"/><stop offset="100%" stop-color="#537e56" stop-opacity="0"/></linearGradient></defs>
+                    <line x1="${padX}" y1="${padY}" x2="${W - padX}" y2="${padY}" stroke="#e3ebe4" stroke-dasharray="3"/>
+                    <line x1="${padX}" y1="${H - padY}" x2="${W - padX}" y2="${H - padY}" stroke="#c7d8c9"/>
+                    ${pts.length > 1 ? `<polygon points="${area}" fill="url(#wGrad)"/><polyline fill="none" stroke="#3f6342" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${poly}"/>` : ''}
+                    ${pts.map((p, i) => `
+                        <circle cx="${p.x}" cy="${p.y}" r="4" fill="#fff" stroke="#3f6342" stroke-width="2.5"/>
+                        <text x="${p.x}" y="${p.y - 9}" text-anchor="middle" font-size="10" font-weight="700" fill="#233526">${p.val}</text>
+                        ${(pts.length <= 10 || i === 0 || i === pts.length - 1 || i % Math.ceil(pts.length / 6) === 0) ? `<text x="${p.x}" y="${H - 8}" text-anchor="middle" font-size="9" fill="#6b7280">${p.lbl}</text>` : ''}
+                    `).join('')}
+                </svg>`;
+            }
+
+            // 3. Grafik Batang Kalori Masuk vs Keluar (14 hari terakhir dari filter)
+            const cRecs = records.slice(-14);
+            if (cRecs.length === 0) {
+                $('calorie-chart-box').innerHTML = `<p class="text-xs text-gray-400 italic">Belum ada catatan kalori pada periode ini.</p>`;
+            } else {
+                const maxCal = Math.max(settings.targetIn, ...cRecs.map(r => Math.max(r.calIn, r.calOut)), 100);
+                $('calorie-chart-box').innerHTML = `
+                <div class="w-full h-full flex items-end justify-around gap-1.5 pt-4 pb-1 px-1">
+                    ${cRecs.map(r => {
+                        const hIn = Math.max(4, Math.round((r.calIn / maxCal) * 135));
+                        const hOut = Math.max(4, Math.round((r.calOut / maxCal) * 135));
+                        const shortD = r.date.slice(5).split('-').reverse().join('/');
+                        return `
+                        <div class="flex flex-col items-center flex-1 min-w-0 group cursor-pointer" onclick="selectDate('${r.date}')" title="${formatDateIndo(r.date)}: Masuk ${r.calIn} kkal, Keluar ${r.calOut} kkal">
+                            <div class="flex items-end gap-0.5 h-36">
+                                <div class="w-2 sm:w-3 rounded-t-md ${r.calIn > settings.targetIn ? 'bg-red-400' : 'bg-amber-400'} transition-all group-hover:opacity-80" style="height:${r.calIn ? hIn : 2}px"></div>
+                                <div class="w-2 sm:w-3 rounded-t-md bg-emerald-500 transition-all group-hover:opacity-80" style="height:${r.calOut ? hOut : 2}px"></div>
+                            </div>
+                            <span class="text-[9px] text-gray-500 font-medium mt-1.5 truncate w-full text-center">${shortD}</span>
+                        </div>`;
+                    }).join('')}
+                </div>`;
+            }
+
+            // 4. Progress Bar Kepatuhan Pantangan
+            $('clean-days-summary').textContent = `${cleanDays} / ${totalDays} Hari Clean Eating (3/3)`;
+            $('habits-stats-bars').innerHTML = HABIT_META.map(m => {
+                const count = records.filter(r => r.habits[m.key]?.done).length;
+                const pct = totalDays ? Math.round((count / totalDays) * 100) : 0;
+                return `
+                <div class="p-4 rounded-2xl bg-cream border border-sage-100">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-7 h-7 rounded-lg ${m.bg} flex items-center justify-center"><i class="ph-fill ${m.icon} text-base"></i></span>
+                            <span class="font-display font-bold text-sm text-gray-900">${m.title}</span>
+                        </div>
+                        <span class="text-xs font-extrabold text-sage-800">${pct}% <span class="font-normal text-gray-400">(${count}/${totalDays})</span></span>
+                    </div>
+                    <div class="w-full bg-gray-200/70 h-2 rounded-full overflow-hidden">
+                        <div class="${m.bar} h-full rounded-full transition-all duration-500" style="width:${pct}%"></div>
+                    </div>
+                </div>`;
+            }).join('');
+
+            // 5. Tabel Riwayat Seluruh Hari
+            const descRecords = [...records].reverse();
+            $('history-count-badge').textContent = `${descRecords.length} Hari Tercatat`;
+            $('history-table-body').innerHTML = descRecords.length ? descRecords.map(r => {
+                const weightText = r.weightVal !== null ? `<span class="font-bold text-gray-900">${r.weightVal.toFixed(1)} kg</span>` : (r.isSkip ? `<span class="text-gray-400 italic">Skip</span>` : `<span class="text-gray-300">—</span>`);
+                const badgePantangan = r.habitsDone === 3 ? 'bg-emerald-100 text-emerald-800' : (r.habitsDone > 0 ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600');
+                return `
+                <tr onclick="selectDate('${r.date}')" class="hover:bg-sage-50/70 cursor-pointer transition-colors">
+                    <td class="py-3 px-4 font-semibold text-sage-900 whitespace-nowrap">${formatDateIndo(r.date)}</td>
+                    <td class="py-3 px-3 whitespace-nowrap">${weightText}</td>
+                    <td class="py-3 px-3 font-semibold text-amber-700 whitespace-nowrap">${r.calIn.toLocaleString('id-ID')} kkal</td>
+                    <td class="py-3 px-3 font-semibold text-emerald-700 whitespace-nowrap">${r.calOut.toLocaleString('id-ID')} kkal</td>
+                    <td class="py-3 px-3 font-bold ${r.net > settings.targetIn ? 'text-red-600' : 'text-gray-800'} whitespace-nowrap">${r.net.toLocaleString('id-ID')} kkal</td>
+                    <td class="py-3 px-3 whitespace-nowrap"><span class="px-2 py-0.5 rounded-lg font-bold text-[11px] ${badgePantangan}">${r.habitsDone}/3</span></td>
+                    <td class="py-3 px-4 text-gray-500 max-w-xs truncate">${r.journal ? esc(r.journal) : '<span class="text-gray-300">—</span>'}</td>
+                </tr>`;
+            }).join('') : `<tr><td colspan="7" class="py-8 text-center text-gray-400 italic">Belum ada data harian yang diisi.</td></tr>`;
+        }
+
+        function showToast(msg, type = 'success') {
+            const t = document.createElement('div');
+            t.className = `${type === 'error' ? 'bg-red-600' : 'bg-sage-800'} text-white text-xs font-medium px-4 py-3 rounded-2xl shadow-lg flex items-center gap-2 transition-all duration-300 translate-y-2 opacity-0 pointer-events-auto`;
+            t.innerHTML = `<i class="ph-fill ${type === 'error' ? 'ph-warning-circle' : 'ph-check-circle'} text-base shrink-0"></i><span>${esc(msg)}</span>`;
+            $('toast-container').appendChild(t);
+            requestAnimationFrame(() => t.classList.remove('translate-y-2', 'opacity-0'));
+            setTimeout(() => { t.classList.add('opacity-0', 'translate-y-2'); setTimeout(() => t.remove(), 300); }, 2500);
+        }
+
+        window.addEventListener('DOMContentLoaded', () => { loadStorage(); renderAll(); });
+    </script>
+</body>
+</html>
